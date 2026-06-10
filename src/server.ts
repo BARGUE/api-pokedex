@@ -12,7 +12,6 @@ import { BerryStored, toBerryStoredLang } from "./services/berries";
 import { TypeStored, toTypeStoredLang } from "./services/types";
 import type { MoveLangResolvers } from "./services/moves";
 import type { SupportedLang } from "./types/lang-views";
-import { browserEmail } from "zod/v4/core/regexes.cjs";
 
 type PokemonListRow = {
   name: string;
