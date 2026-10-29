@@ -22,9 +22,6 @@ export type TypeStoredLang = {
   };
 };
 
-export type TypeStoredEN = TypeStoredLang;
-export type TypeStoredFR = TypeStoredLang;
-
 // ---------------------------------------------------------------------------
 // Species (infos espèce Pokémon)
 // ---------------------------------------------------------------------------
@@ -42,9 +39,6 @@ export type SpeciesFieldsLang = {
   types: string[];
 };
 
-export type SpeciesFieldsEN = SpeciesFieldsLang;
-export type SpeciesFieldsFR = SpeciesFieldsLang;
-
 // ---------------------------------------------------------------------------
 // Item
 // ---------------------------------------------------------------------------
@@ -61,9 +55,6 @@ export type ItemStoredLang = {
   flavor_text: string | null;
 };
 
-export type ItemStoredEN = ItemStoredLang;
-export type ItemStoredFR = ItemStoredLang;
-
 // ---------------------------------------------------------------------------
 // Ability
 // ---------------------------------------------------------------------------
@@ -75,9 +66,6 @@ export type AbilityStoredLang = {
   effect_long: string | null;
   flavor_text: string | null;
 };
-
-export type AbilityStoredEN = AbilityStoredLang;
-export type AbilityStoredFR = AbilityStoredLang;
 
 // ---------------------------------------------------------------------------
 // Move
@@ -96,9 +84,6 @@ export type PokemonMoveLang = {
   flavor_text: string | null;
   version?: string[];
 };
-
-export type PokemonMoveEN = PokemonMoveLang;
-export type PokemonMoveFR = PokemonMoveLang;
 
 // ---------------------------------------------------------------------------
 // Berry
@@ -122,9 +107,6 @@ export type BerryStoredLang = {
   } | null;
 };
 
-export type BerryStoredEN = BerryStoredLang;
-export type BerryStoredFR = BerryStoredLang;
-
 // ---------------------------------------------------------------------------
 // Pokémon (résumé avec species en une langue)
 // ---------------------------------------------------------------------------
@@ -146,11 +128,6 @@ export type PokemonDetailLang = {
   images: { official: string | null; shiny: string | null };
   species: SpeciesFieldsLang | null;
 };
-
-export type PokemonListItemEN = PokemonListItemLang;
-export type PokemonListItemFR = PokemonListItemLang;
-export type PokemonDetailEN = PokemonDetailLang;
-export type PokemonDetailFR = PokemonDetailLang;
 
 // ---------------------------------------------------------------------------
 // Evolution : pas de texte traduit (noms = identifiants API), même structure EN/FR

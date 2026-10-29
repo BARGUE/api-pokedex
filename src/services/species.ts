@@ -1,6 +1,7 @@
 import type { Lang, LangEntry } from "../types";
 import type { SpeciesFlavorEntry, SpeciesRaw } from "../types/pokeapi-raw";
 import type { SpeciesFieldsLang } from "../types/lang-views";
+import { normalizeText, otherLang } from "../lib/localize";
 
 export type { Lang };
 
@@ -34,10 +35,6 @@ export type SpeciesFields = {
   };
 };
 
-function normalizePokeText(s: string) {
-  return s.replace(/\f|\n/g, " ").replace(/\s+/g, " ").trim();
-}
-
 function pickByLang<T>(
   arr: LangEntry<T>[] | undefined,
   lang: Lang
@@ -53,14 +50,14 @@ function pickFlavorByLang(species: SpeciesRaw | null | undefined, lang: Lang): s
     entries as LangEntry<{ flavor_text: string }>[],
     lang
   )?.flavor_text ?? null;
-  if (preferred?.trim()) return normalizePokeText(preferred);
-  const fallbackLang: Lang = lang === "fr" ? "en" : "fr";
+  if (preferred?.trim()) return normalizeText(preferred);
+  const fallbackLang = otherLang(lang);
   const fallback =
     pickByLang<{ flavor_text: string }>(
       entries as LangEntry<{ flavor_text: string }>[],
       fallbackLang
     )?.flavor_text ?? null;
-  return fallback?.trim() ? normalizePokeText(fallback) : null;
+  return fallback?.trim() ? normalizeText(fallback) : null;
 }
 
 function pickTranslation(species: SpeciesRaw | null | undefined, lang: Lang): SpeciesTranslation {

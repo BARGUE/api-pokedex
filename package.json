@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
+    "prestart": "npm run build",
     "start": "node dist/server.js",
     "init-db": "tsx scripts/init-db.ts",
     "seed:pokemon": "tsx scripts/seed.ts"
@@ -15,6 +16,7 @@
   "description": "",
   "dependencies": {
     "better-sqlite3": "^12.6.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
@@ -24,9 +26,9 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "ts-node-dev": "^2.0.0"
-   
   }
 }

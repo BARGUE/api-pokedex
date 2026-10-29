@@ -1,3 +1,5 @@
+import { fetchJson } from "../pokeapi";
+
 export type EncounterApi = {
   location_area: { name: string; url: string };
   version_details: Array<{
@@ -114,8 +116,5 @@ export function groupEncounters(encounters: EncounterApi[]): EncountersGrouped {
  * et les retourne regroupées par version.
  */
 export async function fetchEncountersFromUrl(url: string): Promise<EncountersGrouped> {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Failed to fetch encounters: ${r.status} ${r.statusText}`);
-  const raw: EncounterApi[] = await r.json();
-  return groupEncounters(raw);
+  return groupEncounters(await fetchJson<EncounterApi[]>(url, "encounters"));
 }

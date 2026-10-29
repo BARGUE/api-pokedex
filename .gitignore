@@ -3,3 +3,6 @@ dist
 
 scripts
 pokemon.db
+pokemon.db.tmp
+pokemon.db.bak
+.cache

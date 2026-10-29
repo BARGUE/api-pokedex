@@ -1,7 +1,7 @@
-import type { NameEntry } from "../types";
-import type { EffectEntry, FlavorTextWithVersion, AbilityRaw } from "../types/pokeapi-raw";
+import type { FlavorTextWithVersion, AbilityRaw } from "../types/pokeapi-raw";
 import type { AbilityStoredLang } from "../types/lang-views";
 import type { Lang } from "../types";
+import { normalizeText, otherLang, pickEffectByLang, pickNameByLang } from "../lib/localize";
 
 /** Bloc localisé pour une langue (en ou fr). */
 export type AbilityLocalized = {
@@ -20,35 +20,13 @@ export type AbilityStored = {
   };
 };
 
-function normalizeFlavorText(s: unknown): string {
-  return String(s ?? "")
-    .replace(/\f/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function pickEffectsByLang(raw: AbilityRaw | null | undefined, lang: "en" | "fr") {
-  const entries: EffectEntry[] = Array.isArray(raw?.effect_entries) ? raw.effect_entries : [];
-  const item = entries.find((e) => e?.language?.name === lang);
-  return {
-    short: (item?.short_effect ?? null) as string | null,
-    long: (item?.effect ?? null) as string | null,
-  };
-}
-
 /** Retourne le premier flavor text pour la langue, ou null. */
 function pickFirstFlavorTextByLang(raw: AbilityRaw | null | undefined, lang: "en" | "fr"): string | null {
   const entries: FlavorTextWithVersion[] = Array.isArray(raw?.flavor_text_entries)
     ? raw.flavor_text_entries
     : [];
   const first = entries.find((e) => e?.language?.name === lang && e?.version_group?.name);
-  return first ? normalizeFlavorText(first.flavor_text) : null;
-}
-
-function pickNameByLang(names: NameEntry[] | undefined, lang: "en" | "fr"): string | null {
-  const arr = Array.isArray(names) ? names : [];
-  const found = arr.find((n) => n?.language?.name === lang);
-  return (found as { name?: string } | undefined)?.name ?? null;
+  return first ? normalizeText(first.flavor_text) : null;
 }
 
 /** Construit l’objet `localized` (en + fr) à partir de la réponse PokeAPI. */
@@ -63,11 +41,11 @@ export function pickAbilityDetails(
     localized: {
       en: {
         name: pickNameByLang(raw?.names, "en"),
-        effect: pickEffectsByLang(raw, "en"),
+        effect: pickEffectByLang(raw, "en"),
       },
       fr: {
         name: pickNameByLang(raw?.names, "fr"),
-        effect: pickEffectsByLang(raw, "fr"),
+        effect: pickEffectByLang(raw, "fr"),
       },
     },
   };
@@ -80,10 +58,10 @@ export function toAbilityStoredLang(
 ): AbilityStoredLang | null {
   if (!ability) return null;
   const loc = ability.localized[lang];
-  const fallback = ability.localized[lang === "fr" ? "en" : "fr"];
+  const fallback = ability.localized[otherLang(lang)];
   const displayName = loc?.name ?? fallback?.name ?? ability.key;
   const flavorText =
-    ability.flavorText[lang] ?? ability.flavorText[lang === "fr" ? "en" : "fr"] ?? null;
+    ability.flavorText[lang] ?? ability.flavorText[otherLang(lang)] ?? null;
 
   return {
     name: displayName,

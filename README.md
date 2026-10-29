@@ -42,9 +42,9 @@ API REST bilingue (🇬🇧 / 🇫🇷) construite au-dessus de la [PokeAPI](htt
 PokeAPI  ──(seed, une fois)──►  SQLite (pokemon.db)  ──►  Express API  ──►  Client
 ```
 
-1. **Seed** — le script `scripts/seed.ts` récupère et normalise les données de la PokeAPI, puis les écrit dans `pokemon.db`.
-2. **Persistance** — chaque ressource est stockée sous forme de colonnes indexables + un blob `*_json` contenant le détail normalisé (voir [`schema.sql`](schema.sql)).
-3. **Service** — le serveur Express lit uniquement la base locale et applique, à la volée, la vue mono-langue demandée.
+1. **Seed** — le script `scripts/seed.ts` récupère les données de la PokeAPI, les valide avec Zod, puis construit une nouvelle `pokemon.db`.
+2. **Persistance** — schéma relationnel (voir [`schema.sql`](schema.sql)) : une table par entité PokeAPI (id PokeAPI en clé primaire), des tables de liaison (types, stats, capacités, learnset des attaques par version, rencontres…), et les textes traduits en colonnes `*_en` / `*_fr`. Une valeur absente côté PokeAPI est stockée `NULL`.
+3. **Service** — les [`repositories/`](src/repositories/) relisent ces tables et reconstruisent les structures servies ; le serveur Express applique ensuite, à la volée, la vue mono-langue demandée.
 
 ## Prérequis
 
@@ -61,20 +61,28 @@ npm install
 
 ## Peuplement de la base (seed)
 
-La base `pokemon.db` doit être remplie avant de démarrer l'API. Le seed interroge la PokeAPI et peut prendre plusieurs minutes.
+La base `pokemon.db` doit être remplie avant de démarrer l'API. Le seed interroge la PokeAPI (≈ 7 700 requêtes, environ une minute).
 
 ```bash
-# (optionnel) initialise le schéma sans importer de données
-npm run init-db
-
-# importe types, items, baies puis l'ensemble des Pokémon
+# importe types, Pokémon (espèces, évolutions, capacités, attaques, rencontres), objets et baies
 npm run seed:pokemon
 ```
 
-Le comportement du seed est ajustable via variables d'environnement (voir [Configuration](#configuration)). Pour un import rapide de test :
+Le seed ne modifie jamais la base en service pendant l'import :
+
+1. il construit une base neuve dans `pokemon.db.tmp` ;
+2. il la valide : intégrité SQLite, clés étrangères, chaque Pokémon a une espèce, des types et des stats, et les volumes ne baissent pas de plus de 5 % par rapport à la base actuelle ;
+3. si tout est bon, il remplace `pokemon.db` et garde l'ancienne dans `pokemon.db.bak`. Sinon, `pokemon.db` reste intacte et la base générée est conservée pour inspection.
+
+Chaque ressource n'est téléchargée qu'une fois (une attaque partagée par 500 Pokémon ne fait qu'une requête). Les erreurs réseau et les réponses 429/5xx sont réessayées avec un délai croissant.
+
+> Sous Windows, arrêtez l'API avant le remplacement (le fichier est verrouillé), puis redémarrez-la. Une base dont le schéma ne correspond pas est refusée au démarrage avec un message explicite.
+
+Le comportement du seed est ajustable via variables d'environnement (voir [Configuration](#configuration)). Exemples :
 
 ```bash
-SEED_MAX=25 npm run seed:pokemon   # ne traite que 25 Pokémon
+SEED_MAX=25 DB_PATH=./test.db npm run seed:pokemon   # import de test sur 25 Pokémon (jamais mis en service)
+SEED_CACHE_DIR=.cache/pokeapi npm run seed:pokemon   # garde les réponses brutes : un 2e passage est quasi instantané
 ```
 
 ## Démarrage
@@ -103,16 +111,15 @@ Toutes les variables sont optionnelles. Elles peuvent être définies dans l'env
 
 ### Seed
 
-| Variable             | Défaut | Description |
-| -------------------- | ------ | ----------- |
-| `SEED_PAGE_LIMIT`    | `200`  | Taille de page lors du parcours de la liste des Pokémon. |
-| `SEED_OFFSET`        | `0`    | Décalage de départ dans la liste. |
-| `SEED_MAX`           | `0`    | Nombre max de Pokémon à traiter (`0` = tous). |
-| `SEED_DELAY_MS`      | `60`   | Délai (ms) entre chaque requête, pour ménager la PokeAPI. |
-| `SEED_TYPES_BATCH`   | `8`    | Taille des lots parallèles pour les types. |
-| `SEED_ITEMS_BATCH`   | `40`   | Taille des lots parallèles pour les objets. |
-| `SEED_BERRIES_BATCH` | `40`   | Taille des lots parallèles pour les baies. |
-| `MOVES_MAX`          | `0`    | Limite d'attaques hydratées par Pokémon (`0` = toutes). |
+| Variable                   | Défaut | Description |
+| -------------------------- | ------ | ----------- |
+| `DB_PATH`                  | `./pokemon.db` | Base cible (la base temporaire est `<DB_PATH>.tmp`). |
+| `SEED_CONCURRENCY`         | `10`   | Requêtes HTTP simultanées max vers la PokeAPI. |
+| `SEED_POKEMON_CONCURRENCY` | `4`    | Pokémon traités en parallèle. |
+| `SEED_RETRIES`             | `5`    | Nouvelles tentatives par requête en échec (erreur réseau, 429, 5xx). |
+| `SEED_MAX`                 | `0`    | Nombre max de Pokémon à traiter (`0` = tous). Une base partielle n'est jamais mise en service. |
+| `SEED_CACHE_DIR`           | —      | Dossier de cache disque (gzip) des réponses PokeAPI. Désactivé par défaut. |
+| `SEED_FORCE`               | —      | `1` = met la base en service malgré des échecs ou des volumes en baisse. |
 
 ## Référence de l'API
 
@@ -168,15 +175,27 @@ Une valeur `lang` invalide est ignorée (comportement identique à l'absence du 
 
 ```
 api-pokedex/
-├── schema.sql            # Schéma SQLite (tables + contraintes)
+├── schema.sql            # Schéma SQLite relationnel (tables + contraintes)
 ├── pokemon.db            # Base générée par le seed
 ├── scripts/
-│   ├── init-db.ts        # Crée le schéma
-│   └── seed.ts           # Importe les données depuis la PokeAPI
+│   ├── init-db.ts        # Crée une base vide au schéma courant
+│   ├── seed.ts           # Orchestration du seed (import, validation, mise en service)
+│   └── seed/
+│       ├── http.ts       #   client PokeAPI : concurrence, retry, déduplication, cache disque
+│       ├── schemas.ts    #   schémas Zod des réponses PokeAPI
+│       ├── transform.ts  #   réponse PokeAPI -> lignes SQL (fonctions pures)
+│       ├── writer.ts     #   insertions
+│       └── publish.ts    #   validation + remplacement de pokemon.db
 └── src/
-    ├── server.ts         # Serveur Express et routes
-    ├── db.ts             # Connexion SQLite + initialisation du schéma
-    ├── pokeapi.ts        # Clients fetch + schémas Zod PokeAPI
+    ├── server.ts         # Point d'entrée (écoute du port)
+    ├── app.ts            # App Express : middlewares, routeurs, gestion d'erreurs
+    ├── db.ts             # Connexion SQLite + contrôle de version du schéma
+    ├── schema.ts         # Application de schema.sql + SCHEMA_VERSION (PRAGMA user_version)
+    ├── pokeapi.ts        # Client fetch générique + schémas Zod PokeAPI
+    ├── lookups.ts        # Tables de traduction mises en cache (noms de types)
+    ├── routes/           # Handlers HTTP (pokemon.ts, catalog.ts)
+    ├── repositories/     # Accès SQLite (requêtes préparées une seule fois)
+    ├── lib/              # Utilitaires : cache, HTTP, JSON, localisation
     ├── services/         # Normalisation par ressource
     │   ├── species.ts    #   (species, evolution, stats, abilities,
     │   ├── evolution.ts  #    moves, encounters, types, items, berries)
@@ -184,9 +203,15 @@ api-pokedex/
     └── types/            # Types partagés et vues mono-langue
 ```
 
-Chaque module de [`src/services/`](src/services/) expose deux responsabilités :
-- `pick*Details(...)` — extrait et normalise la donnée brute de la PokeAPI (utilisé au seed) ;
-- `to*Lang(...)` — projette la donnée stockée bilingue vers une vue mono-langue (utilisé au service).
+Chaque module de [`src/services/`](src/services/) définit la structure bilingue servie par l'API (`*Stored`) et sa projection mono-langue `to*Lang(...)`. Les [`repositories/`](src/repositories/) construisent ces structures `*Stored` à partir des tables.
+
+Toute modification incompatible de `schema.sql` doit incrémenter `SCHEMA_VERSION` dans [`src/schema.ts`](src/schema.ts).
+
+### Performances
+
+- Les listes (`/pokemon`, `/items`, `/berries`, `/types`) sont calculées, sérialisées et compressées en gzip **une seule fois par langue**, puis servies depuis la mémoire.
+- Ce cache est invalidé automatiquement dès qu'une autre connexion écrit dans la base (`PRAGMA data_version`). Le seed remplaçant le fichier `pokemon.db`, il faut en revanche redémarrer l'API après un seed.
+- Les autres réponses sont compressées à la volée (middleware `compression`).
 
 ## Scripts npm
 
@@ -195,7 +220,7 @@ Chaque module de [`src/services/`](src/services/) expose deux responsabilités :
 | `npm run dev`        | Démarre le serveur en développement (rechargement à chaud). |
 | `npm run build`      | Compile TypeScript vers `dist/`. |
 | `npm start`          | Lance le serveur compilé (`dist/server.js`). |
-| `npm run init-db`    | Crée le schéma SQLite. |
+| `npm run init-db`    | Crée une base vide au schéma courant. |
 | `npm run seed:pokemon` | Importe les données depuis la PokeAPI. |
 
 ## Crédits

@@ -1,3 +1,6 @@
+import { fetchJson } from "../pokeapi";
+import type { EvolutionChainNodeRaw } from "../types/pokeapi-raw";
+
 export type EvolutionItem = {
   id: number | null;
   name: string;
@@ -8,11 +11,7 @@ export type EvolutionItem = {
   };
 };
 
-export async function fetchEvolutionChainFromUrl(url: string) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error("Failed to fetch evolution chain");
-  return r.json();
-}
+export const fetchEvolutionChainFromUrl = (url: string) => fetchJson(url, "evolution chain");
 
 function getIdFromSpeciesUrl(url?: string): number | null {
   if (!url) return null;
@@ -20,7 +19,7 @@ function getIdFromSpeciesUrl(url?: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-function buildImagesFromId(id: number | null) {
+export function buildImagesFromId(id: number | null) {
   return {
     official: id
       ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`
@@ -30,8 +29,6 @@ function buildImagesFromId(id: number | null) {
       : null
   };
 }
-
-import type { EvolutionChainNodeRaw } from "../types/pokeapi-raw";
 
 export function extractEvolutionItems(
   chainNode: EvolutionChainNodeRaw | null | undefined,

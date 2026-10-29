@@ -1,7 +1,7 @@
-import type { NameEntry } from "../types";
-import type { EffectEntry, FlavorTextEntry, ItemRaw } from "../types/pokeapi-raw";
+import type { FlavorTextEntry, ItemRaw } from "../types/pokeapi-raw";
 import type { ItemStoredLang } from "../types/lang-views";
 import type { Lang } from "../types";
+import { normalizeText, otherLang, pickEffectByLang, pickNameByLang } from "../lib/localize";
 
 /** Bloc localisé pour une langue (en ou fr). */
 export type ItemLocalized = {
@@ -24,28 +24,6 @@ export type ItemStored = {
     fr: ItemLocalized;
   };
 };
-
-function normalizeText(s: unknown): string {
-  return String(s ?? "")
-    .replace(/\f/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function pickNameByLang(names: NameEntry[] | undefined, lang: "en" | "fr"): string | null {
-  const arr = Array.isArray(names) ? names : [];
-  const found = arr.find((n) => n?.language?.name === lang);
-  return (found as { name?: string } | undefined)?.name ?? null;
-}
-
-function pickEffectByLang(raw: ItemRaw | null | undefined, lang: "en" | "fr") {
-  const entries: EffectEntry[] = Array.isArray(raw?.effect_entries) ? raw.effect_entries : [];
-  const item = entries.find((e) => e?.language?.name === lang);
-  return {
-    short: (item?.short_effect ?? null) as string | null,
-    long: (item?.effect ?? null) as string | null,
-  };
-}
 
 function pickFirstFlavorByLang(raw: ItemRaw | null | undefined, lang: "en" | "fr"): string | null {
   const entries: FlavorTextEntry[] = Array.isArray(raw?.flavor_text_entries)
@@ -95,7 +73,7 @@ export function toItemStoredLang(
 ): ItemStoredLang | null {
   if (!item) return null;
   const loc = item.localized[lang];
-  const fallback = item.localized[lang === "fr" ? "en" : "fr"];
+  const fallback = item.localized[otherLang(lang)];
   const displayName = loc?.name ?? fallback?.name ?? item.key;
   return {
     id: item.id,

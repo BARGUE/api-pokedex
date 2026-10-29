@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { PokemonStatItem } from "./services/stats";
+import type { PokemonStatItem } from "./services/stats";
 
 const MoveRefSchema = z.object({
   move: z.object({
@@ -142,47 +142,22 @@ export type PokemonParsed = {
   moves: MoveRef[];
 };
 
-export async function fetchPokemonSpeciesFromPokeApi(url: string) {
+/** GET JSON sur PokeAPI ; `label` sert uniquement au message d'erreur. */
+export async function fetchJson<T = any>(url: string, label: string): Promise<T> {
   const r = await fetch(url);
-  if (!r.ok) throw new Error(`PokeAPI species error: ${r.status} ${r.statusText}`);
-  return r.json();
+  if (!r.ok) throw new Error(`Failed to fetch ${label}: ${r.status} ${r.statusText}`);
+  return r.json() as Promise<T>;
 }
 
-export async function fetchAbilityFromPokeApi(url: string) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Failed to fetch ability: ${r.status} ${r.statusText}`);
-  return r.json();
-}
-
-export async function fetchMoveFromPokeApi(name: string) {
-  const r = await fetch(name);
-  if (!r.ok) throw new Error(`Failed to fetch move: ${r.status} ${r.statusText}`);
-  return r.json();
-}
-
-export async function fetchBerryFromPokeApi(url: string) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Failed to fetch berry: ${r.status} ${r.statusText}`);
-  return r.json();
-}
-
-export async function fetchItemFromPokeApi(url: string) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Failed to fetch item: ${r.status} ${r.statusText}`);
-  return r.json();
-}
-
-export async function fetchTypeFromPokeApi(url: string) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`Failed to fetch type: ${r.status} ${r.statusText}`);
-  return r.json();
-}
+export const fetchPokemonSpeciesFromPokeApi = (url: string) => fetchJson(url, "species");
+export const fetchAbilityFromPokeApi = (url: string) => fetchJson(url, "ability");
+export const fetchMoveFromPokeApi = (url: string) => fetchJson(url, "move");
+export const fetchBerryFromPokeApi = (url: string) => fetchJson(url, "berry");
+export const fetchItemFromPokeApi = (url: string) => fetchJson(url, "item");
+export const fetchTypeFromPokeApi = (url: string) => fetchJson(url, "type");
 
 export async function fetchPokemonFromPokeApi(query: string | number): Promise<PokemonParsed> {
-  const res = await fetch(`https://pokeapi.co/api/v2/pokemon/${query}`);
-  if (!res.ok) throw new Error(`PokeAPI error: ${res.status} ${res.statusText}`);
-
-  const json = await res.json();
+  const json = await fetchJson(`https://pokeapi.co/api/v2/pokemon/${query}`, "pokemon");
   const data = PokeApiPokemonSchema.parse(json);
 
   const types = data.types.map((t) => t.type.name);

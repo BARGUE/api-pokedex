@@ -1,6 +1,7 @@
 import type { NameEntry, NamedList } from "../types";
 import type { TypeStoredLang } from "../types/lang-views";
 import type { Lang } from "../types";
+import { otherLang, pickNameByLang } from "../lib/localize";
 
 export type TypeStored = {
   key: string;
@@ -21,12 +22,6 @@ export type TypeStored = {
     fr: { name: string | null };
   };
 };
-
-function pickNameByLang(names: NameEntry[] | undefined, lang: "en" | "fr"): string | null {
-  const arr = Array.isArray(names) ? names : [];
-  const found = arr.find((n) => n?.language?.name === lang);
-  return (found as { name?: string } | undefined)?.name ?? null;
-}
 
 function pickNameList(arr: NamedList | null | undefined): string[] {
   if (!Array.isArray(arr)) return [];
@@ -78,7 +73,7 @@ export function toTypeStoredLang(
 ): TypeStoredLang | null {
   if (!type) return null;
   const loc = type.localized[lang];
-  const fallback = type.localized[lang === "fr" ? "en" : "fr"];
+  const fallback = type.localized[otherLang(lang)];
   const name = loc?.name ?? fallback?.name ?? type.key ?? "";
 
   const from = type.damageRelations.from;

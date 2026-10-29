@@ -1,7 +1,7 @@
-import type { NameEntry } from "../types";
-import type { EffectEntry, MoveRaw } from "../types/pokeapi-raw";
+import type { MoveRaw } from "../types/pokeapi-raw";
 import type { PokemonMoveLang } from "../types/lang-views";
 import type { Lang } from "../types";
+import { normalizeText, otherLang, pickEffectByLang, pickNameByLang } from "../lib/localize";
 
 /** Bloc localisé pour une langue (en ou fr). */
 export type MoveLocalized = {
@@ -30,22 +30,12 @@ export type PokemonMove = {
   };
 };
 
-function normalizeText(s: unknown): string {
-  return String(s ?? "").replace(/\f/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function pickNameByLang(names: NameEntry[] | undefined, lang: "en" | "fr"): string | null {
-  const arr = Array.isArray(names) ? names : [];
-  const found = arr.find((n) => n?.language?.name === lang);
-  return typeof found?.name === "string" ? found.name : null;
-}
-
-function pickEffectByLang(raw: MoveRaw | null | undefined, lang: "en" | "fr") {
-  const entries: EffectEntry[] = Array.isArray(raw?.effect_entries) ? raw.effect_entries : [];
-  const item = entries.find((e) => e?.language?.name === lang);
+/** Les moves stockent des effets normalisés, "" si absents. */
+function pickMoveEffectByLang(raw: MoveRaw | null | undefined, lang: Lang) {
+  const { short, long } = pickEffectByLang(raw, lang);
   return {
-    short: typeof item?.short_effect === "string" ? normalizeText(item.short_effect) : "",
-    long: typeof item?.effect === "string" ? normalizeText(item.effect) : "",
+    short: short != null ? normalizeText(short) : "",
+    long: long != null ? normalizeText(long) : "",
   };
 }
 
@@ -95,14 +85,25 @@ export function pickMoveDetails(
     localized: {
       en: {
         name: enName ?? fallbackName,
-        effect: pickEffectByLang(raw, "en"),
+        effect: pickMoveEffectByLang(raw, "en"),
       },
       fr: {
         name: frName ?? enName ?? fallbackName,
-        effect: pickEffectByLang(raw, "fr"),
+        effect: pickMoveEffectByLang(raw, "fr"),
       },
     },
   };
+}
+
+/** Noms des catégories de dégâts des moves (PokeAPI: physical, special, status). */
+const DAMAGE_CLASS_NAMES: Record<string, Record<Lang, string>> = {
+  physical: { en: "Physical", fr: "Physique" },
+  special: { en: "Special", fr: "Spécial" },
+  status: { en: "Status", fr: "Statut" },
+};
+
+export function getDamageClassName(apiName: string, lang: Lang): string {
+  return DAMAGE_CLASS_NAMES[apiName.toLowerCase()]?.[lang] ?? apiName;
 }
 
 export type MoveLangResolvers = {
@@ -118,7 +119,7 @@ export function toPokemonMoveLang(
 ): PokemonMoveLang | null {
   if (!move) return null;
   const loc = move.localized[lang];
-  const fallback = move.localized[lang === "fr" ? "en" : "fr"];
+  const fallback = move.localized[otherLang(lang)];
   const displayName = loc?.name ?? fallback?.name ?? move.key;
   const typeName =
     resolvers?.typeName?.(move.stats.type) ?? move.stats.type ?? "unknown";
@@ -126,7 +127,7 @@ export function toPokemonMoveLang(
     resolvers?.damageClassName?.(move.stats.damageClass) ?? move.stats.damageClass ?? "unknown";
 
   const flavorText =
-    move.flavorText[lang] ?? move.flavorText[lang === "fr" ? "en" : "fr"] ?? null;
+    move.flavorText[lang] ?? move.flavorText[otherLang(lang)] ?? null;
 
   return {
     name: displayName,
